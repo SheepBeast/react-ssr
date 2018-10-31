@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const ReactDOMServer = require("react-dom/server");
 const { matchRoutes } = require("react-router-config");
-const { getLoadableState } = require("loadable-components/server");
+const { LoadableState } = require("@loadable/server");
 const app = express();
 
 const isProd = process.env.NODE_ENV === "production";
@@ -44,54 +44,56 @@ const render = (req, res) => {
   let context = {};
   let component = createApp(context, req.url, store);
 
-  // 提取可加载状态
-  getLoadableState(component).then(loadableState => {
-    // 匹配路由
-    let matchs = matchRoutes(router, req.path);
-    promises = matchs.map(({ route, match }) => {
-      const asyncData = route.component.Component.asyncData;
-      // match.params获取匹配的路由参数
-      return asyncData ? asyncData(store, Object.assign(match.params, req.query)) : Promise.resolve(null);
-    });
+  // 收集chunks
+  const loadableState = new LoadableState();
+  const loadableComponent = loadableState.collectChunks(component);
 
-    // resolve所有asyncData
-    Promise.all(promises).then(() => {
-      // 获取预加载的state，供客户端初始化
-      preloadedState = store.getState();
-      // 异步数据请求完成后进行服务端render
-      handleRender();
-    }).catch(error => {
-      console.log(error);
-      res.status(500).send("Internal server error");
-    });
-
-    function handleRender() {
-      let html = ReactDOMServer.renderToString(component);
-
-      if (context.url) {  // 当发生重定向时，静态路由会设置url
-        res.redirect(context.url);
-        return;
-      }
-
-      if (!context.status) {  // 无status字段表示路由匹配成功
-        // 获取组件内的head对象，必须在组件renderToString后获取
-        let head = component.type.head.renderStatic();
-        // 替换注释节点为渲染后的html字符串
-        let htmlStr = template
-        .replace(/<title>.*<\/title>/, `${head.title.toString()}`)
-        .replace("<!--react-ssr-head-->", `${head.meta.toString()}\n${head.link.toString()}
-          <script type="text/javascript">
-            window.__INITIAL_STATE__ = ${JSON.stringify(preloadedState)}
-          </script>
-        `)
-        .replace("<!--react-ssr-outlet-->", `<div id='app'>${html}</div>\n${loadableState.getScriptTag()}`);
-        // 将渲染后的html字符串发送给客户端
-        res.send(htmlStr);
-      } else {
-        res.status(context.status).send("error code：" + context.status);
-      }
-    }
+  // 匹配路由
+  let matchs = matchRoutes(router, req.path);
+  promises = matchs.map(({ route, match }) => {
+    // const asyncData = route.component.Component.asyncData;
+    const asyncData = null;
+    // match.params获取匹配的路由参数
+    return asyncData ? asyncData(store, Object.assign(match.params, req.query)) : Promise.resolve(null);
   });
+
+  // resolve所有asyncData
+  Promise.all(promises).then(() => {
+    // 获取预加载的state，供客户端初始化
+    preloadedState = store.getState();
+    // 异步数据请求完成后进行服务端render
+    handleRender();
+  }).catch(error => {
+    console.log(error);
+    res.status(500).send("Internal server error");
+  });
+
+  function handleRender() {
+    let html = ReactDOMServer.renderToString(loadableComponent);
+
+    if (context.url) {  // 当发生重定向时，静态路由会设置url
+      res.redirect(context.url);
+      return;
+    }
+
+    if (!context.status) {  // 无status字段表示路由匹配成功
+      // 获取组件内的head对象，必须在组件renderToString后获取
+      let head = component.type.head.renderStatic();
+      // 替换注释节点为渲染后的html字符串
+      let htmlStr = template
+      .replace(/<title>.*<\/title>/, `${head.title.toString()}`)
+      .replace("<!--react-ssr-head-->", `${head.meta.toString()}\n${head.link.toString()}
+        <script type="text/javascript">
+          window.__INITIAL_STATE__ = ${JSON.stringify(preloadedState)}
+        </script>
+      `)
+      .replace("<!--react-ssr-outlet-->", `<div id='app'>${html}</div>\n${loadableState.getScriptTags()}`);
+      // 将渲染后的html字符串发送给客户端
+      res.send(htmlStr);
+    } else {
+      res.status(context.status).send("error code：" + context.status);
+    }
+  }
 }
 
 app.get("*", isProd ? render : (req, res) => {

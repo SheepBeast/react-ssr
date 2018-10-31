@@ -25,9 +25,9 @@ const webpackConfig = merge(baseWebpackConfig, {
             options: {
               babelrc: false,
               presets: [
-                "react",
+                "@babel/preset-react",
                 [
-                  "env",
+                  "@babel/preset-env",
                   {
                     "targets": {
                       "node": "current"
@@ -37,7 +37,7 @@ const webpackConfig = merge(baseWebpackConfig, {
               ],
               "plugins": [
                 "dynamic-import-node",
-                "loadable-components/babel"
+                "@loadable/babel-plugin"
               ]
             }
           },
