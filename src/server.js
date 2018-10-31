@@ -3,7 +3,6 @@ const fs = require("fs");
 const path = require("path");
 const ReactDOMServer = require("react-dom/server");
 const { matchRoutes } = require("react-router-config");
-const { LoadableState } = require("@loadable/server");
 const app = express();
 
 const isProd = process.env.NODE_ENV === "production";
@@ -44,15 +43,11 @@ const render = (req, res) => {
   let context = {};
   let component = createApp(context, req.url, store);
 
-  // 收集chunks
-  const loadableState = new LoadableState();
-  const loadableComponent = loadableState.collectChunks(component);
-
   // 匹配路由
   let matchs = matchRoutes(router, req.path);
   promises = matchs.map(({ route, match }) => {
     // const asyncData = route.component.Component.asyncData;
-    const asyncData = null;
+    const asyncData = route.component.asyncData;
     // match.params获取匹配的路由参数
     return asyncData ? asyncData(store, Object.assign(match.params, req.query)) : Promise.resolve(null);
   });
@@ -69,7 +64,7 @@ const render = (req, res) => {
   });
 
   function handleRender() {
-    let html = ReactDOMServer.renderToString(loadableComponent);
+    let html = ReactDOMServer.renderToString(component);
 
     if (context.url) {  // 当发生重定向时，静态路由会设置url
       res.redirect(context.url);
@@ -87,7 +82,7 @@ const render = (req, res) => {
           window.__INITIAL_STATE__ = ${JSON.stringify(preloadedState)}
         </script>
       `)
-      .replace("<!--react-ssr-outlet-->", `<div id='app'>${html}</div>\n${loadableState.getScriptTags()}`);
+      .replace("<!--react-ssr-outlet-->", `<div id='app'>${html}</div>\n${component.type.loadableState.getScriptTags()}`);
       // 将渲染后的html字符串发送给客户端
       res.send(htmlStr);
     } else {
