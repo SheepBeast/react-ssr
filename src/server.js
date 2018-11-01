@@ -47,7 +47,7 @@ const render = (req, res) => {
   let matchs = matchRoutes(router, req.path);
   promises = matchs.map(({ route, match }) => {
     // const asyncData = route.component.Component.asyncData;
-    const asyncData = route.component.asyncData;
+    const asyncData = route.asyncData;
     // match.params获取匹配的路由参数
     return asyncData ? asyncData(store, Object.assign(match.params, req.query)) : Promise.resolve(null);
   });

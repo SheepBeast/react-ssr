@@ -3,6 +3,7 @@ const webpack = require("webpack");
 const merge = require("webpack-merge");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const MiniCssExtractPlugin = require("mini-css-extract-plugin");
+const LoadablePlugin = require("@loadable/webpack-plugin");
 const baseWebpackConfig = require("./webpack.config.base");
 const util = require("./util");
 
@@ -14,7 +15,7 @@ const webpackConfig = merge(baseWebpackConfig, {
   },
   output: {
     path: path.resolve(__dirname, "../dist"),
-    filename: "static/js/[name].[chunkhash].js",
+    filename: "static/js/[name].[hash].js",
     publicPath: "/dist/"  // 打包后输出路径以/dist/开头
   },
   module: {
@@ -56,7 +57,8 @@ const webpackConfig = merge(baseWebpackConfig, {
     new HtmlWebpackPlugin({
       filename: "index.html",
       template: "index.html"
-    })
+    }),
+    new LoadablePlugin()
   ]
 });
 
