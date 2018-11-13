@@ -1,17 +1,17 @@
 const path = require("path");
 const webpack = require("webpack");
-const MFS = require('memory-fs');
+const MFS = require("memory-fs");
 const clientConfig = require("../config/webpack.config.client");
 const serverConfig = require("../config/webpack.config.server");
 
 module.exports = function setupDevServer(app, callback) {
-  let serverEntry;
-  let template;
+  let bundle;
+  let loadableStats;
   let resolve;
   const readyPromise = new Promise(r => { resolve = r });
   const update = () => {
-    if (serverEntry && template) {
-      callback(serverEntry, template);
+    if (bundle && loadableStats) {
+      callback(bundle, loadableStats);
       resolve(); // resolve Promise让服务端进行render
     }
   }
@@ -30,13 +30,13 @@ module.exports = function setupDevServer(app, callback) {
 
   const devMiddleware = require("webpack-dev-middleware")(clientCompiler, {
     publicPath: clientConfig.output.publicPath,
-    noInfo: true
+    logLevel: "warn"
   });
   // 使用webpack-dev-middleware中间件服务webpack打包后的资源文件
   app.use(devMiddleware);
 
   /* eslint-disable no-console */
-  clientCompiler.plugin("done", stats => {
+  clientCompiler.hooks.done.tap("done", stats => {
     const info = stats.toJson();
     if (stats.hasWarnings()) {
       console.warn(info.warnings);
@@ -46,8 +46,7 @@ module.exports = function setupDevServer(app, callback) {
       console.error(info.errors);
       return;
     }
-    // 从webpack-dev-middleware中间件存储的内存中读取打包后的inddex.html文件模板
-    template = readFile(devMiddleware.fileSystem, "index.html");
+    loadableStats = JSON.parse(readFile(devMiddleware.fileSystem, "loadable-stats.json"));
     update();
   });
 
@@ -70,15 +69,7 @@ module.exports = function setupDevServer(app, callback) {
       return;
     }
 
-    // 读取打包后的内容并编译模块
-    const bundle = readFile(mfs, "entry-server.js");
-    const vm = require("vm");
-    const sandbox = {
-      module: module,
-      require: require
-    };
-    vm.runInNewContext(bundle, sandbox);
-    serverEntry = sandbox.module.exports;
+    bundle = JSON.parse(readFile(mfs, "server-bundle.json"));
     update();
   });
 
